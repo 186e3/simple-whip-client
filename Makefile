@@ -11,7 +11,7 @@ all: whip-client
 	$(CC) $(ASAN) $(STUFF) -fPIC $(GDB) -c $< -o $@ $(OPTS)
 
 whip-client: $(OBJS)
-	$(CC) $(GDB) -o whip-client $(OBJS) $(ASAN_LIBS) $(STUFF_LIBS)
+	$(CC) $(GDB) -o whip-client -pthread $(OBJS) $(ASAN_LIBS) $(STUFF_LIBS)
 
 clean:
 	rm -f whip-client src/*.o
