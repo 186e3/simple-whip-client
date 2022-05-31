@@ -27,6 +27,8 @@
 /* Local includes */
 #include "debug.h"
 
+#include <pthread.h>
+
 /* Logging */
 int whip_log_level = LOG_INFO;
 gboolean whip_log_timestamps = FALSE;
@@ -384,6 +386,17 @@ static gboolean source_events(GstPad *pad, GstObject *parent, GstEvent *event)
 	return ret;
 }
 
+void *foo(void *p);
+void *foo(void *p)
+{
+	while (0)
+	{
+		printf("tick\n");
+		gst_webrtc_data_channel_send_string(p, "hello");
+		sleep(10);
+	}
+}
+
 /* Helper method to initialize the GStreamer WebRTC stack */
 static gboolean whip_initialize(void)
 {
@@ -425,6 +438,7 @@ static gboolean whip_initialize(void)
 	/* Get a pointer to the PeerConnection object */
 	pc = gst_bin_get_by_name(GST_BIN(pipeline), "sendonly");
 	g_assert_nonnull(pc);
+
 	/* Check if there's any TURN server to add */
 	if ((turn_server != NULL && turn_server[0] != NULL) || (auto_turn_server != NULL && auto_turn_server[0] != NULL))
 	{
@@ -467,6 +481,21 @@ static gboolean whip_initialize(void)
 
 	/* Start the pipeline */
 	gst_element_set_state(pipeline, GST_STATE_READY);
+
+	// ++cameron
+	//////nogst_element_set_state (pc, GST_STATE_READY) == GST_STATE_CHANGE_FAILURE);
+	GObject *channel = NULL;
+	g_signal_emit_by_name(pc, "create-data-channel", "channame", NULL, &channel);
+	if (!channel)
+	{
+		WHIP_LOG(LOG_FATAL, "datachan fail\n");
+		return FALSE;
+	}
+
+	pthread_t id;
+	pthread_create(&id, NULL, foo, channel);
+	// -- cameron
+
 	/* Lifetime is the same as the pipeline itself */
 	gst_object_unref(pc);
 
