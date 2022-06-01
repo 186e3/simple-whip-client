@@ -28,6 +28,31 @@
 #include "debug.h"
 
 #include <pthread.h>
+#include <time.h>
+#include <errno.h>    
+
+/* msleep(): Sleep for the requested number of milliseconds. */
+int msleep(long msec);
+int msleep(long msec)
+{
+    struct timespec ts;
+    int res;
+
+    if (msec < 0)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    ts.tv_sec = msec / 1000;
+    ts.tv_nsec = (msec % 1000) * 1000000;
+
+    do {
+        res = nanosleep(&ts, &ts);
+    } while (res && errno == EINTR);
+
+    return res;
+}
 
 /* Logging */
 int whip_log_level = LOG_INFO;
@@ -389,11 +414,11 @@ static gboolean source_events(GstPad *pad, GstObject *parent, GstEvent *event)
 void *foo(void *p);
 void *foo(void *p)
 {
-	while (0)
+	while (1)
 	{
 		printf("tick\n");
-		gst_webrtc_data_channel_send_string(p, "hello");
-		sleep(10);
+		gst_webrtc_data_channel_send_string(p, "xx");
+		sleep(1);
 	}
 }
 
