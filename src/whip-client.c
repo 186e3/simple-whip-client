@@ -29,29 +29,54 @@
 
 #include <pthread.h>
 #include <time.h>
-#include <errno.h>    
+#include <errno.h>
+
+// socket stuff
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
+#include <assert.h>
+
+int sockfd; // nice global
+
+/*
+ * error - wrapper for perror
+ */
+void error(char *msg);
+void error(char *msg)
+{
+	perror(msg);
+	exit(0);
+}
 
 /* msleep(): Sleep for the requested number of milliseconds. */
 int msleep(long msec);
 int msleep(long msec)
 {
-    struct timespec ts;
-    int res;
+	struct timespec ts;
+	int res;
 
-    if (msec < 0)
-    {
-        errno = EINVAL;
-        return -1;
-    }
+	if (msec < 0)
+	{
+		errno = EINVAL;
+		return -1;
+	}
 
-    ts.tv_sec = msec / 1000;
-    ts.tv_nsec = (msec % 1000) * 1000000;
+	ts.tv_sec = msec / 1000;
+	ts.tv_nsec = (msec % 1000) * 1000000;
 
-    do {
-        res = nanosleep(&ts, &ts);
-    } while (res && errno == EINTR);
+	do
+	{
+		res = nanosleep(&ts, &ts);
+	} while (res && errno == EINTR);
 
-    return res;
+	return res;
 }
 
 /* Logging */
@@ -170,6 +195,64 @@ static GOptionEntry opt_entries[] = {
 /* Main application */
 int main(int argc, char *argv[])
 {
+	// networking
+
+	struct hostent *server;
+	char *hostname = "127.0.0.1";
+	int portno = 5007;
+
+	/* check command line arguments */
+	if (argc == 3)
+	{
+		// fprintf(stderr, "usage: %s <hostname> <port>\n", argv[0]);
+		// exit(0);
+		hostname = argv[1];
+		portno = atoi(argv[2]);
+	}
+	fprintf(stdout, "network  <hostname>:%s <port>:%d\n", hostname, portno);
+	// exit(0);
+
+	/* gethostbyname: get the server's DNS entry */
+	server = gethostbyname(hostname);
+	if (server == NULL)
+	{
+		fprintf(stderr, "ERROR, no such host as %s\n", hostname);
+		exit(0);
+	}
+
+	struct sockaddr_in serveraddr; // more globals are even more cool
+
+	/* build the server's Internet address */
+	bzero((char *)&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	bcopy((char *)server->h_addr,
+		  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+	serveraddr.sin_port = htons(portno);
+
+	/* socket: create the socket */
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockfd < 0)
+		error("ERROR opening socket");
+
+	int r = bind(sockfd, (const struct sockaddr *)&serveraddr, sizeof(serveraddr));
+	if (r < 0)
+	{
+		error("ERROR bind failed");
+	}
+
+	/* get a message from the user */
+	// bzero(buf, BUFSIZE);
+	// printf("Please enter msg: ");
+	// fgets(buf, BUFSIZE, stdin);
+
+	/* send the message to the server */
+	// serverlen = sizeof(serveraddr);
+	// n = sendto(sockfd, "wow", strlen("wow"), 0, &serveraddr, serverlen);
+	// if (n < 0)
+	//     error("ERROR in sendto");
+
+	// end of networking
+	// start of GSTREAMER stuff
 
 	/* Parse the command-line arguments */
 	GError *error = NULL;
@@ -411,16 +494,44 @@ static gboolean source_events(GstPad *pad, GstObject *parent, GstEvent *event)
 	return ret;
 }
 
-void *foo(void *p);
-void *foo(void *p)
+void *udp_rx_thread(void *p);
+#if 0
+void *udp_rx_thread(void *p)
 {
+
+	char buf[2000];
 	while (1)
 	{
-		printf("tick\n");
-		gst_webrtc_data_channel_send_string(p, "xx");
+		printf("wait for udp\n");
+		/* print the server's reply */
+		ssize_t n = recv(sockfd, &buf, sizeof(buf), 0);
+		if (n < 0)
+			error("ERROR in recv");
+
+		printf("got udp\n");
+
+		assert(n < (sizeof(buf)-1) && "buffer overflow");
+
+		buf[n] = 0;
+
+		printf("sending dchan msg\n");
+
+		gst_webrtc_data_channel_send_string(p, "xxppp");
 		sleep(1);
 	}
 }
+#else
+void *udp_rx_thread(void *p)
+{
+
+	while (1)
+	{
+		printf("sending dchan msg\n");
+		gst_webrtc_data_channel_send_string(p, "xxppp");
+		sleep(1);
+	}
+}
+#endif
 
 /* Helper method to initialize the GStreamer WebRTC stack */
 static gboolean whip_initialize(void)
@@ -516,9 +627,10 @@ static gboolean whip_initialize(void)
 		WHIP_LOG(LOG_FATAL, "datachan fail\n");
 		return FALSE;
 	}
+	//printf("##### %lx\n", channel);
 
 	pthread_t id;
-	pthread_create(&id, NULL, foo, channel);
+	pthread_create(&id, NULL, udp_rx_thread, channel);
 	// -- cameron
 
 	/* Lifetime is the same as the pipeline itself */
