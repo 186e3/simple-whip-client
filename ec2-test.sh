@@ -23,6 +23,8 @@ set -gx V "videotestsrc pattern=smpte ! queue ! vp8enc   ! rtpvp8pay pt=96 ssrc=
 set -gx U https://mediaserver.whip.dev.omnivor.io/whip/endpoint/foo
 set -gx U http://192.168.86.3:7080/whip/endpoint/foo
 
+set -gx V "udpsrc port=5006 caps = \"application/x-rtp, ssrc=(uint)2, media=(string)video, clock-rate=(int)90000, encoding-name=(string)VP8, payload=(int)96\""
+
 GST_DEBUG=3,webrtc*:9,sctp*:9,dtls*:9 ./whip-client \
 -u "$U" \
 -V "$V" \
