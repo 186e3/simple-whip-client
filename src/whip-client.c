@@ -549,7 +549,8 @@ static gboolean whip_initialize(void)
 	if (video_pipe != NULL)
 		g_snprintf(video, sizeof(video), "%s ! sendonly.", video_pipe);
 	g_snprintf(gst_pipeline, sizeof(gst_pipeline), "webrtcbin name=sendonly bundle-policy=%d %s %s %s %s %s",
-			   (audio_pipe && video_pipe ? 3 : 0),
+			   //(audio_pipe && video_pipe ? 3 : 0),
+			   3,
 			   (force_turn ? "ice-transport-policy=relay" : ""),
 			   stun, turn, video, audio);
 	/* Launch the pipeline */
